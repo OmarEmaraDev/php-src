@@ -99,7 +99,7 @@ typedef struct {
 	php_stream		*li_stream;
 	unsigned int 	multi_query;
 	zend_bool		persistent;
-#if defined(MYSQLI_USE_MYSQLND)
+#ifdef MYSQLI_USE_MYSQLND
 	int				async_result_fetch_type;
 #endif
 } MY_MYSQL;
@@ -229,7 +229,7 @@ extern void php_mysqli_fetch_into_hash_aux(zval *return_value, MYSQL_RES * resul
 		RETURN_THROWS();\
   	}\
 	__ptr = (__type)my_res->ptr; \
-	if (__check && my_res->status < __check) { \
+	if (my_res->status < __check) { \
 		zend_throw_error(NULL, "%s object is not fully initialized", ZSTR_VAL(intern->zo.ce->name)); \
 		RETURN_THROWS();\
 	}\
@@ -243,7 +243,7 @@ extern void php_mysqli_fetch_into_hash_aux(zval *return_value, MYSQL_RES * resul
 		return;\
 	}\
 	__ptr = (__type)my_res->ptr; \
-	if (__check && my_res->status < __check) { \
+	if (my_res->status < __check) { \
 		zend_throw_error(NULL, "%s object is not fully initialized", ZSTR_VAL(intern->zo.ce->name)); \
 		return;\
 	}\
@@ -252,7 +252,10 @@ extern void php_mysqli_fetch_into_hash_aux(zval *return_value, MYSQL_RES * resul
 #define MYSQLI_FETCH_RESOURCE_CONN(__ptr, __id, __check) \
 { \
 	MYSQLI_FETCH_RESOURCE((__ptr), MY_MYSQL *, (__id), "mysqli_link", (__check)); \
-	ZEND_ASSERT((__ptr)->mysql && "Missing connection?"); \
+	if (!(__ptr)->mysql) { \
+		zend_throw_error(NULL, "%s object is not fully initialized", ZSTR_VAL(Z_OBJCE_P(__id)->name)); \
+		RETURN_THROWS(); \
+	} \
 }
 
 #define MYSQLI_FETCH_RESOURCE_STMT(__ptr, __id, __check) \

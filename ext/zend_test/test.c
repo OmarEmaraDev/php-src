@@ -23,11 +23,13 @@
 #include "ext/standard/info.h"
 #include "php_test.h"
 #include "test_arginfo.h"
+#include "zend_attributes.h"
 
 static zend_class_entry *zend_test_interface;
 static zend_class_entry *zend_test_class;
 static zend_class_entry *zend_test_child_class;
 static zend_class_entry *zend_test_trait;
+static zend_class_entry *zend_test_attribute;
 static zend_object_handlers zend_test_class_handlers;
 
 ZEND_FUNCTION(zend_test_func)
@@ -43,21 +45,18 @@ ZEND_FUNCTION(zend_test_func)
 
 ZEND_FUNCTION(zend_test_array_return)
 {
-	zval *arg1, *arg2;
-
-	zend_parse_parameters(ZEND_NUM_ARGS(), "|zz", &arg1, &arg2);
+	ZEND_PARSE_PARAMETERS_NONE();
 }
 
 ZEND_FUNCTION(zend_test_nullable_array_return)
 {
-	zval *arg1, *arg2;
-
-	zend_parse_parameters(ZEND_NUM_ARGS(), "|zz", &arg1, &arg2);
+	ZEND_PARSE_PARAMETERS_NONE();
 }
 
 ZEND_FUNCTION(zend_test_void_return)
 {
 	/* dummy */
+	ZEND_PARSE_PARAMETERS_NONE();
 }
 
 ZEND_FUNCTION(zend_test_deprecated)
@@ -97,8 +96,7 @@ ZEND_FUNCTION(zend_terminate_string)
 	ZSTR_VAL(str)[ZSTR_LEN(str)] = '\0';
 }
 
-/* {{{ proto void zend_leak_bytes([int num_bytes])
-   Cause an intentional memory leak, for testing/debugging purposes */
+/* {{{ Cause an intentional memory leak, for testing/debugging purposes */
 ZEND_FUNCTION(zend_leak_bytes)
 {
 	zend_long leakbytes = 3;
@@ -111,8 +109,7 @@ ZEND_FUNCTION(zend_leak_bytes)
 }
 /* }}} */
 
-/* {{{ proto void zend_leak_variable(mixed variable)
-   Leak a refcounted variable */
+/* {{{ Leak a refcounted variable */
 ZEND_FUNCTION(zend_leak_variable)
 {
 	zval *zv;
@@ -127,6 +124,82 @@ ZEND_FUNCTION(zend_leak_variable)
 	}
 
 	Z_ADDREF_P(zv);
+}
+/* }}} */
+
+/* Tests Z_PARAM_STR_OR_OBJ */
+ZEND_FUNCTION(zend_string_or_object)
+{
+	zend_string *str;
+	zend_object *object;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR_OR_OBJ(str, object)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (str) {
+		RETURN_STR_COPY(str);
+	} else {
+		RETURN_OBJ_COPY(object);
+	}
+}
+/* }}} */
+
+/* Tests Z_PARAM_STR_OR_OBJ_OR_NULL */
+ZEND_FUNCTION(zend_string_or_object_or_null)
+{
+	zend_string *str;
+	zend_object *object;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR_OR_OBJ_OR_NULL(str, object)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (str) {
+		RETURN_STR_COPY(str);
+	} else if (object) {
+		RETURN_OBJ_COPY(object);
+	} else {
+		RETURN_NULL();
+	}
+}
+/* }}} */
+
+/* Tests Z_PARAM_STR_OR_OBJ_OF_CLASS */
+ZEND_FUNCTION(zend_string_or_stdclass)
+{
+	zend_string *str;
+	zend_object *object;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR_OR_OBJ_OF_CLASS(str, object, zend_standard_class_def)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (str) {
+		RETURN_STR_COPY(str);
+	} else {
+		RETURN_OBJ_COPY(object);
+	}
+}
+/* }}} */
+
+/* Tests Z_PARAM_STR_OR_OBJ_OF_CLASS_OR_NULL */
+ZEND_FUNCTION(zend_string_or_stdclass_or_null)
+{
+	zend_string *str;
+	zend_object *object;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR_OR_OBJ_OF_CLASS_OR_NULL(str, object, zend_standard_class_def)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (str) {
+		RETURN_STR_COPY(str);
+	} else if (object) {
+		RETURN_OBJ_COPY(object);
+	} else {
+		RETURN_NULL();
+	}
 }
 /* }}} */
 
@@ -181,32 +254,28 @@ static zend_function *zend_test_class_static_method_get(zend_class_entry *ce, ze
 }
 /* }}} */
 
-static ZEND_METHOD(_ZendTestClass, __toString) /* {{{ */ {
+void zend_attribute_validate_zendtestattribute(zend_attribute *attr, uint32_t target, zend_class_entry *scope)
+{
+	if (target != ZEND_ATTRIBUTE_TARGET_CLASS) {
+		zend_error(E_COMPILE_ERROR, "Only classes can be marked with @@ZendTestAttribute");
+	}
+}
+
+ZEND_METHOD(_ZendTestClass, __toString) /* {{{ */ {
 	RETURN_EMPTY_STRING();
 }
 /* }}} */
 
 /* Internal function returns bool, we return int. */
-static ZEND_METHOD(_ZendTestClass, is_object) /* {{{ */ {
+ZEND_METHOD(_ZendTestClass, is_object) /* {{{ */ {
 	RETURN_LONG(42);
 }
 /* }}} */
 
-static ZEND_METHOD(_ZendTestTrait, testMethod) /* {{{ */ {
+ZEND_METHOD(_ZendTestTrait, testMethod) /* {{{ */ {
 	RETURN_TRUE;
 }
 /* }}} */
-
-static const zend_function_entry zend_test_class_methods[] = {
-	ZEND_ME(_ZendTestClass, is_object, arginfo_class__ZendTestClass_is_object, ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
-	ZEND_ME(_ZendTestClass, __toString, arginfo_class__ZendTestClass___toString, ZEND_ACC_DEPRECATED)
-	ZEND_FE_END
-};
-
-static const zend_function_entry zend_test_trait_methods[] = {
-    ZEND_ME(_ZendTestTrait, testMethod, arginfo_class__ZendTestTrait_testMethod, ZEND_ACC_PUBLIC)
-    ZEND_FE_END
-};
 
 PHP_MINIT_FUNCTION(zend_test)
 {
@@ -215,7 +284,7 @@ PHP_MINIT_FUNCTION(zend_test)
 	INIT_CLASS_ENTRY(class_entry, "_ZendTestInterface", NULL);
 	zend_test_interface = zend_register_internal_interface(&class_entry);
 	zend_declare_class_constant_long(zend_test_interface, ZEND_STRL("DUMMY"), 0);
-	INIT_CLASS_ENTRY(class_entry, "_ZendTestClass", zend_test_class_methods);
+	INIT_CLASS_ENTRY(class_entry, "_ZendTestClass", class__ZendTestClass_methods);
 	zend_test_class = zend_register_internal_class(&class_entry);
 	zend_class_implements(zend_test_class, 1, zend_test_interface);
 	zend_test_class->create_object = zend_test_class_new;
@@ -275,7 +344,7 @@ PHP_MINIT_FUNCTION(zend_test)
 	memcpy(&zend_test_class_handlers, &std_object_handlers, sizeof(zend_object_handlers));
 	zend_test_class_handlers.get_method = zend_test_class_method_get;
 
-	INIT_CLASS_ENTRY(class_entry, "_ZendTestTrait", zend_test_trait_methods);
+	INIT_CLASS_ENTRY(class_entry, "_ZendTestTrait", class__ZendTestTrait_methods);
 	zend_test_trait = zend_register_internal_class(&class_entry);
 	zend_test_trait->ce_flags |= ZEND_ACC_TRAIT;
 	zend_declare_property_null(zend_test_trait, "testProp", sizeof("testProp")-1, ZEND_ACC_PUBLIC);
@@ -283,6 +352,16 @@ PHP_MINIT_FUNCTION(zend_test)
 	zend_register_class_alias("_ZendTestClassAlias", zend_test_class);
 
 	REGISTER_LONG_CONSTANT("ZEND_TEST_DEPRECATED", 42, CONST_PERSISTENT | CONST_DEPRECATED);
+
+	INIT_CLASS_ENTRY(class_entry, "ZendTestAttribute", NULL);
+	zend_test_attribute = zend_register_internal_class(&class_entry);
+	zend_test_attribute->ce_flags |= ZEND_ACC_FINAL;
+
+	{
+		zend_internal_attribute *attr = zend_internal_attribute_register(zend_test_attribute, ZEND_ATTRIBUTE_TARGET_ALL);
+		attr->validator = zend_attribute_validate_zendtestattribute;
+	}
+
 	return SUCCESS;
 }
 
@@ -311,22 +390,10 @@ PHP_MINFO_FUNCTION(zend_test)
 	php_info_print_table_end();
 }
 
-static const zend_function_entry zend_test_functions[] = {
-	ZEND_FE(zend_test_array_return, arginfo_zend_test_array_return)
-	ZEND_FE(zend_test_nullable_array_return, arginfo_zend_test_nullable_array_return)
-	ZEND_FE(zend_test_void_return, arginfo_zend_test_void_return)
-	ZEND_DEP_FE(zend_test_deprecated, arginfo_zend_test_deprecated)
-	ZEND_FE(zend_create_unterminated_string, arginfo_zend_create_unterminated_string)
-	ZEND_FE(zend_terminate_string, arginfo_zend_terminate_string)
-	ZEND_FE(zend_leak_bytes, arginfo_zend_leak_bytes)
-	ZEND_FE(zend_leak_variable, arginfo_zend_leak_variable)
-	ZEND_FE_END
-};
-
 zend_module_entry zend_test_module_entry = {
 	STANDARD_MODULE_HEADER,
 	"zend-test",
-	zend_test_functions,
+	ext_functions,
 	PHP_MINIT(zend_test),
 	PHP_MSHUTDOWN(zend_test),
 	PHP_RINIT(zend_test),
@@ -343,11 +410,19 @@ ZEND_TSRMLS_CACHE_DEFINE()
 ZEND_GET_MODULE(zend_test)
 #endif
 
-struct bug79096 bug79096(void)
+PHP_ZEND_TEST_API struct bug79096 bug79096(void)
 {
   struct bug79096 b;
 
   b.a = 1;
   b.b = 1;
   return b;
+}
+
+PHP_ZEND_TEST_API void bug79532(off_t *array, size_t elems)
+{
+	int i;
+	for (i = 0; i < elems; i++) {
+		array[i] = i;
+	}
 }
